@@ -56,4 +56,10 @@ func TestTrackOptions(t *testing.T) {
 	if client.UserAgent != customUserAgent {
 		t.Errorf("wrong user-agent. got: %s, want: %s", client.UserAgent, customUserAgent)
 	}
+
+	emailIDType := "email"
+	client = customerio.NewTrackClient("site_id", "api_key", customerio.WithIDType(emailIDType))
+	if client.IDType != emailIDType {
+		t.Errorf("wrong id_type. got: %s, want: %s", client.IDType, emailIDType)
+	}
 }

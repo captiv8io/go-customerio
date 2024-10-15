@@ -22,7 +22,7 @@ const (
 )
 
 // AddPeopleToSegment adds people to a segment.
-func (c *CustomerIO) AddPeopleToSegment(ctx context.Context, segmentID int, idType string, ids []string) error {
+func (c *CustomerIO) AddPeopleToSegment(ctx context.Context, segmentID int, ids []string) error {
 	if segmentID == 0 {
 		return ParamError{Param: "segmentID"}
 	}
@@ -30,14 +30,14 @@ func (c *CustomerIO) AddPeopleToSegment(ctx context.Context, segmentID int, idTy
 		return ParamError{Param: "ids"}
 	}
 	return c.request(ctx, "POST",
-		fmt.Sprintf("%s/api/v1/segments/%d/add_customers?id_type=%s", c.URL, segmentID, c.getValidIDType(idType)),
+		fmt.Sprintf("%s/api/v1/segments/%d/add_customers%s", c.URL, segmentID, c.getQueryParams()),
 		map[string]interface{}{
 			"ids": ids,
 		})
 }
 
 // RemovePeopleFromSegment removes people from a segment
-func (c *CustomerIO) RemovePeopleFromSegment(ctx context.Context, segmentID int, idType string, ids []string) error {
+func (c *CustomerIO) RemovePeopleFromSegment(ctx context.Context, segmentID int, ids []string) error {
 	if segmentID == 0 {
 		return ParamError{Param: "segmentID"}
 	}
@@ -45,18 +45,23 @@ func (c *CustomerIO) RemovePeopleFromSegment(ctx context.Context, segmentID int,
 		return ParamError{Param: "ids"}
 	}
 	return c.request(ctx, "POST",
-		fmt.Sprintf("%s/api/v1/segments/%d/remove_customers?id_type=%s", c.URL, segmentID, c.getValidIDType(idType)),
+		fmt.Sprintf("%s/api/v1/segments/%d/remove_customers%s", c.URL, segmentID, c.getQueryParams()),
 		map[string]interface{}{
 			"ids": ids,
 		})
 }
 
-// getValidIDType returns the valid IDType or defaults to IDTypeID
-func (c *CustomerIO) getValidIDType(idType string) IDType {
-	switch IDType(idType) {
+// getQueryParams returns the query parameter for the request.
+func (c *CustomerIO) getQueryParams() string {
+	if c.IDType == "" {
+		return ""
+	}
+
+	// Check if the IDType is valid and construct query parameter accordingly
+	switch IDType(c.IDType) {
 	case IDTypeEmail, IDTypeCioID:
-		return IDType(idType)
+		return fmt.Sprintf("?id_type=%s", c.IDType)
 	default:
-		return DefaultIDType
+		return fmt.Sprintf("?id_type=%s", DefaultIDType)
 	}
 }
