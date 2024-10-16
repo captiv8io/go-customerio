@@ -55,3 +55,12 @@ func WithUserAgent(ua string) option {
 		},
 	}
 }
+
+func WithIDType(idType string) option {
+	return option{
+		api: func(a *APIClient) {},
+		track: func(c *CustomerIO) {
+			c.IDType = idType
+		},
+	}
+}

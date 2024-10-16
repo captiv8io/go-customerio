@@ -11,17 +11,15 @@ import (
 
 func TestAddPeopleToSegment(t *testing.T) {
 	customerIDs := []string{"1", "2", "3"}
-	var verify = func(req *http.Request) {
-		idType := req.URL.Query().Get("id_type")
-		if idType != "id" {
-			t.Errorf("Expected id_type to be 'id', got '%s'", idType)
-		}
-	}
+	var verify = func(req *http.Request) {}
 
-	api, srv := segmentsTrackServer(t, verify)
+	srv := segmentsTrackServer(t, verify)
 	defer srv.Close()
 
-	err := api.AddPeopleToSegment(context.Background(), testSegmentID, "id", customerIDs)
+	api := customerio.NewTrackClient("test", "myKey")
+	api.URL = srv.URL
+
+	err := api.AddPeopleToSegment(context.Background(), testSegmentID, customerIDs)
 	if err != nil {
 		t.Error(err)
 	}
@@ -36,10 +34,13 @@ func TestAddPeopleToSegmentEmailIDType(t *testing.T) {
 		}
 	}
 
-	api, srv := segmentsTrackServer(t, verify)
+	srv := segmentsTrackServer(t, verify)
 	defer srv.Close()
 
-	err := api.AddPeopleToSegment(context.Background(), testSegmentID, "email", customerIDs)
+	api := customerio.NewTrackClient("test", "myKey", customerio.WithIDType("email"))
+	api.URL = srv.URL
+
+	err := api.AddPeopleToSegment(context.Background(), testSegmentID, customerIDs)
 	if err != nil {
 		t.Error(err)
 	}
@@ -54,10 +55,34 @@ func TestAddPeopleToSegmentCioIDType(t *testing.T) {
 		}
 	}
 
-	api, srv := segmentsTrackServer(t, verify)
+	srv := segmentsTrackServer(t, verify)
 	defer srv.Close()
 
-	err := api.AddPeopleToSegment(context.Background(), testSegmentID, "cio_id", customerIDs)
+	api := customerio.NewTrackClient("test", "myKey", customerio.WithIDType("cio_id"))
+	api.URL = srv.URL
+
+	err := api.AddPeopleToSegment(context.Background(), testSegmentID, customerIDs)
+	if err != nil {
+		t.Error(err)
+	}
+}
+
+func TestAddPeopleToSegmentInvalidIDType(t *testing.T) {
+	customerIDs := []string{"1", "2", "3"}
+	var verify = func(req *http.Request) {
+		idType := req.URL.Query().Get("id_type")
+		if idType != "id" {
+			t.Errorf("Expected id_type to be 'id', got '%s'", idType)
+		}
+	}
+
+	srv := segmentsTrackServer(t, verify)
+	defer srv.Close()
+
+	api := customerio.NewTrackClient("test", "myKey", customerio.WithIDType("invalid"))
+	api.URL = srv.URL
+
+	err := api.AddPeopleToSegment(context.Background(), testSegmentID, customerIDs)
 	if err != nil {
 		t.Error(err)
 	}
@@ -67,10 +92,13 @@ func TestAddPeopleToSegmentSegmentParamError(t *testing.T) {
 	var customerIDs []string
 	var verify = func(req *http.Request) {}
 
-	api, srv := segmentsTrackServer(t, verify)
+	srv := segmentsTrackServer(t, verify)
 	defer srv.Close()
 
-	err := api.AddPeopleToSegment(context.Background(), 0, "id", customerIDs)
+	api := customerio.NewTrackClient("test", "myKey")
+	api.URL = srv.URL
+
+	err := api.AddPeopleToSegment(context.Background(), 0, customerIDs)
 	if err == nil {
 		t.Errorf("Expected error, got: %#v", err)
 	}
@@ -84,10 +112,13 @@ func TestAddPeopleToSegmentIDsParamError(t *testing.T) {
 	var customerIDs []string
 	var verify = func(req *http.Request) {}
 
-	api, srv := segmentsTrackServer(t, verify)
+	srv := segmentsTrackServer(t, verify)
 	defer srv.Close()
 
-	err := api.AddPeopleToSegment(context.Background(), testSegmentID, "id", customerIDs)
+	api := customerio.NewTrackClient("test", "myKey")
+	api.URL = srv.URL
+
+	err := api.AddPeopleToSegment(context.Background(), testSegmentID, customerIDs)
 	if err == nil {
 		t.Errorf("Expected error, got: %#v", err)
 	}
@@ -101,10 +132,13 @@ func TestAddPeopleToSegmentError(t *testing.T) {
 	customerIDs := []string{"1", "2", "3"}
 	var verify = func(req *http.Request) {}
 
-	api, srv := segmentsTrackServer(t, verify)
+	srv := segmentsTrackServer(t, verify)
 	defer srv.Close()
 
-	err := api.AddPeopleToSegment(context.Background(), notFoundID, "id", customerIDs)
+	api := customerio.NewTrackClient("test", "myKey")
+	api.URL = srv.URL
+
+	err := api.AddPeopleToSegment(context.Background(), notFoundID, customerIDs)
 	if err == nil {
 		t.Errorf("Expected error, got: %#v", err)
 	}
@@ -114,7 +148,7 @@ func TestAddPeopleToSegmentError(t *testing.T) {
 	}
 }
 
-func segmentsTrackServer(t *testing.T, verify func(req *http.Request)) (*customerio.CustomerIO, *httptest.Server) {
+func segmentsTrackServer(t *testing.T, verify func(req *http.Request)) *httptest.Server {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		verify(req)
 
@@ -132,25 +166,20 @@ func segmentsTrackServer(t *testing.T, verify func(req *http.Request)) (*custome
 		}
 	}))
 
-	api := customerio.NewCustomerIO("test", "myKey")
-	api.URL = srv.URL
-
-	return api, srv
+	return srv
 }
 
 func TestRemovePeopleFromSegment(t *testing.T) {
 	customerIDs := []string{"1", "2", "3"}
-	var verify = func(req *http.Request) {
-		idType := req.URL.Query().Get("id_type")
-		if idType != "id" {
-			t.Errorf("Expected id_type to be 'id', got '%s'", idType)
-		}
-	}
+	var verify = func(req *http.Request) {}
 
-	api, srv := segmentsTrackServer(t, verify)
+	srv := segmentsTrackServer(t, verify)
 	defer srv.Close()
 
-	err := api.RemovePeopleFromSegment(context.Background(), testSegmentID, "id", customerIDs)
+	api := customerio.NewTrackClient("test", "myKey")
+	api.URL = srv.URL
+
+	err := api.RemovePeopleFromSegment(context.Background(), testSegmentID, customerIDs)
 	if err != nil {
 		t.Error(err)
 	}
@@ -165,10 +194,13 @@ func TestRemovePeopleToSegmentEmailIDType(t *testing.T) {
 		}
 	}
 
-	api, srv := segmentsTrackServer(t, verify)
+	srv := segmentsTrackServer(t, verify)
 	defer srv.Close()
 
-	err := api.RemovePeopleFromSegment(context.Background(), testSegmentID, "email", customerIDs)
+	api := customerio.NewTrackClient("test", "myKey", customerio.WithIDType("email"))
+	api.URL = srv.URL
+
+	err := api.RemovePeopleFromSegment(context.Background(), testSegmentID, customerIDs)
 	if err != nil {
 		t.Error(err)
 	}
@@ -183,10 +215,34 @@ func TestRemovePeopleToSegmentCioIDType(t *testing.T) {
 		}
 	}
 
-	api, srv := segmentsTrackServer(t, verify)
+	srv := segmentsTrackServer(t, verify)
 	defer srv.Close()
 
-	err := api.RemovePeopleFromSegment(context.Background(), testSegmentID, "cio_id", customerIDs)
+	api := customerio.NewTrackClient("test", "myKey", customerio.WithIDType("cio_id"))
+	api.URL = srv.URL
+
+	err := api.RemovePeopleFromSegment(context.Background(), testSegmentID, customerIDs)
+	if err != nil {
+		t.Error(err)
+	}
+}
+
+func TestRemovePeopleToSegmentInvalidIDType(t *testing.T) {
+	customerIDs := []string{"1", "2", "3"}
+	var verify = func(req *http.Request) {
+		idType := req.URL.Query().Get("id_type")
+		if idType != "id" {
+			t.Errorf("Expected id_type to be 'id', got '%s'", idType)
+		}
+	}
+
+	srv := segmentsTrackServer(t, verify)
+	defer srv.Close()
+
+	api := customerio.NewTrackClient("test", "myKey", customerio.WithIDType("invalid"))
+	api.URL = srv.URL
+
+	err := api.RemovePeopleFromSegment(context.Background(), testSegmentID, customerIDs)
 	if err != nil {
 		t.Error(err)
 	}
@@ -196,10 +252,13 @@ func TestRemovePeopleFromSegmentSegmentParamError(t *testing.T) {
 	var customerIDs []string
 	var verify = func(req *http.Request) {}
 
-	api, srv := segmentsTrackServer(t, verify)
+	srv := segmentsTrackServer(t, verify)
 	defer srv.Close()
 
-	err := api.RemovePeopleFromSegment(context.Background(), 0, "id", customerIDs)
+	api := customerio.NewTrackClient("test", "myKey")
+	api.URL = srv.URL
+
+	err := api.RemovePeopleFromSegment(context.Background(), 0, customerIDs)
 	if err == nil {
 		t.Errorf("Expected error, got: %#v", err)
 	}
@@ -213,10 +272,13 @@ func TestRemovePeopleFromSegmentIDsParamError(t *testing.T) {
 	var customerIDs []string
 	var verify = func(req *http.Request) {}
 
-	api, srv := segmentsTrackServer(t, verify)
+	srv := segmentsTrackServer(t, verify)
 	defer srv.Close()
 
-	err := api.RemovePeopleFromSegment(context.Background(), testSegmentID, "id", customerIDs)
+	api := customerio.NewTrackClient("test", "myKey")
+	api.URL = srv.URL
+
+	err := api.RemovePeopleFromSegment(context.Background(), testSegmentID, customerIDs)
 	if err == nil {
 		t.Errorf("Expected error, got: %#v", err)
 	}
@@ -230,10 +292,13 @@ func TestRemovePeopleFromSegmentError(t *testing.T) {
 	customerIDs := []string{"1", "2", "3"}
 	var verify = func(req *http.Request) {}
 
-	api, srv := segmentsTrackServer(t, verify)
+	srv := segmentsTrackServer(t, verify)
 	defer srv.Close()
 
-	err := api.RemovePeopleFromSegment(context.Background(), notFoundID, "id", customerIDs)
+	api := customerio.NewTrackClient("test", "myKey")
+	api.URL = srv.URL
+
+	err := api.RemovePeopleFromSegment(context.Background(), notFoundID, customerIDs)
 	if err == nil {
 		t.Errorf("Expected error, got: %#v", err)
 	}
