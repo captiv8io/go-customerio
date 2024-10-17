@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -31,14 +30,16 @@ func TestCreateSegment(t *testing.T) {
 		},
 	}
 
-	var verify = func(request []byte) {
+	var verify = func(req *http.Request) {
+		defer req.Body.Close()
+
 		var body customerio.CreateSegmentRequest
-		if err := json.Unmarshal(request, &body); err != nil {
+		if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
 			t.Error(err)
 		}
 
 		if !reflect.DeepEqual(&body, createSegmentRequest) {
-			t.Errorf("Request differed, want: %#v, got: %#v", request, body)
+			t.Errorf("Request differed, want: %#v, got: %#v", createSegmentRequest, body)
 		}
 	}
 
@@ -137,7 +138,7 @@ func TestCreateSegmentUnmarshalError(t *testing.T) {
 }
 
 func TestListSegments(t *testing.T) {
-	var verify = func(request []byte) {}
+	var verify = func(req *http.Request) {}
 
 	api, srv := segmentsAppServer(t, verify)
 	defer srv.Close()
@@ -208,7 +209,7 @@ func TestListSegmentsUnmarshalError(t *testing.T) {
 }
 
 func TestGetSegment(t *testing.T) {
-	var verify = func(request []byte) {}
+	var verify = func(req *http.Request) {}
 
 	api, srv := segmentsAppServer(t, verify)
 	defer srv.Close()
@@ -277,7 +278,7 @@ func TestGetSegmentUnmarshalError(t *testing.T) {
 }
 
 func TestDeleteSegment(t *testing.T) {
-	var verify = func(request []byte) {}
+	var verify = func(req *http.Request) {}
 
 	api, srv := segmentsAppServer(t, verify)
 	defer srv.Close()
@@ -335,7 +336,7 @@ func TestDeleteSegmentUnmarshalError(t *testing.T) {
 }
 
 func TestGetSegmentDependencies(t *testing.T) {
-	var verify = func(request []byte) {}
+	var verify = func(req *http.Request) {}
 
 	api, srv := segmentsAppServer(t, verify)
 	defer srv.Close()
@@ -409,7 +410,7 @@ func TestGetSegmentDependenciesUnmarshalError(t *testing.T) {
 }
 
 func TestGetSegmentCustomerCount(t *testing.T) {
-	var verify = func(request []byte) {}
+	var verify = func(req *http.Request) {}
 
 	api, srv := segmentsAppServer(t, verify)
 	defer srv.Close()
@@ -475,12 +476,57 @@ func TestGetSegmentCustomerCountUnmarshalError(t *testing.T) {
 }
 
 func TestListCustomersInSegment(t *testing.T) {
-	var verify = func(request []byte) {}
+	var verify = func(req *http.Request) {}
 
 	api, srv := segmentsAppServer(t, verify)
 	defer srv.Close()
 
-	resp, err := api.ListCustomersInSegment(context.Background(), testSegmentID)
+	resp, err := api.ListCustomersInSegment(context.Background(), &customerio.ListCustomersInSegmentRequest{
+		SegmentID: testSegmentID,
+	})
+	if err != nil {
+		t.Error(err)
+	}
+
+	expect := &customerio.ListCustomersInSegmentResponse{
+		IDs: []string{"string"},
+		Identifiers: []customerio.CustomerIdentifier{
+			{
+				Email: "test@example.com",
+				ID:    "test@example.com",
+				CioID: "a3000001",
+			},
+		},
+		Next: "string",
+	}
+
+	if !reflect.DeepEqual(resp, expect) {
+		t.Errorf("Expect: %#v, Got: %#v", expect, resp)
+	}
+}
+
+func TestListCustomersInSegmentWithStartAndLimit(t *testing.T) {
+	var verify = func(req *http.Request) {
+		start := req.URL.Query().Get("start")
+		limit := req.URL.Query().Get("limit")
+
+		if start != "start" {
+			t.Errorf("Expected start to be start, got: %s", start)
+		}
+
+		if limit != "30000" {
+			t.Errorf("Expected limit to be 30000, got: %s", limit)
+		}
+	}
+
+	api, srv := segmentsAppServer(t, verify)
+	defer srv.Close()
+
+	resp, err := api.ListCustomersInSegment(context.Background(), &customerio.ListCustomersInSegmentRequest{
+		SegmentID: testSegmentID,
+		Start:     "start",
+		Limit:     30000,
+	})
 	if err != nil {
 		t.Error(err)
 	}
@@ -512,7 +558,9 @@ func TestListCustomersInSegmentDoRequestError(t *testing.T) {
 	api := customerio.NewAPIClient("myKey")
 	api.URL = srv.URL
 
-	_, err := api.ListCustomersInSegment(context.Background(), testSegmentID)
+	_, err := api.ListCustomersInSegment(context.Background(), &customerio.ListCustomersInSegmentRequest{
+		SegmentID: testSegmentID,
+	})
 	if err == nil {
 		t.Errorf("Expected error due to request failure, got: nil")
 	}
@@ -527,7 +575,9 @@ func TestListCustomersInSegmentNotOKError(t *testing.T) {
 	api := customerio.NewAPIClient("myKey")
 	api.URL = srv.URL
 
-	_, err := api.ListCustomersInSegment(context.Background(), testSegmentID)
+	_, err := api.ListCustomersInSegment(context.Background(), &customerio.ListCustomersInSegmentRequest{
+		SegmentID: testSegmentID,
+	})
 	if err == nil {
 		t.Errorf("Expected error, got: %#v", err)
 	}
@@ -542,7 +592,9 @@ func TestListCustomersInSegmentUnmarshalError(t *testing.T) {
 	api := customerio.NewAPIClient("myKey")
 	api.URL = srv.URL
 
-	_, err := api.ListCustomersInSegment(context.Background(), testSegmentID)
+	_, err := api.ListCustomersInSegment(context.Background(), &customerio.ListCustomersInSegmentRequest{
+		SegmentID: testSegmentID,
+	})
 	if err == nil {
 		t.Errorf("Expected error due to invalid JSON, got: nil")
 	}
@@ -552,15 +604,9 @@ func intPtr(s int) *int {
 	return &s
 }
 
-func segmentsAppServer(t *testing.T, verify func(request []byte)) (*customerio.APIClient, *httptest.Server) {
+func segmentsAppServer(t *testing.T, verify func(request *http.Request)) (*customerio.APIClient, *httptest.Server) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		b, err := ioutil.ReadAll(req.Body)
-		if err != nil {
-			t.Error(err)
-		}
-		defer req.Body.Close()
-
-		verify(b)
+		verify(req)
 
 		switch true {
 		case req.Method == "POST" && req.URL.Path == "/v1/segments":

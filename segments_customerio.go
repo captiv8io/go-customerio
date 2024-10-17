@@ -3,6 +3,7 @@ package customerio
 import (
 	"context"
 	"fmt"
+	"net/url"
 )
 
 // IDType is the type of ids you want to use.
@@ -29,8 +30,14 @@ func (c *CustomerIO) AddPeopleToSegment(ctx context.Context, segmentID int, ids 
 	if len(ids) == 0 {
 		return ParamError{Param: "ids"}
 	}
-	return c.request(ctx, "POST",
-		fmt.Sprintf("%s/api/v1/segments/%d/add_customers%s", c.URL, segmentID, c.getQueryParams()),
+
+	uri, err := url.Parse(fmt.Sprintf("%s/api/v1/segments/%d/add_customers", c.URL, segmentID))
+	if err != nil {
+		return err
+	}
+	c.addIDTypeQuery(uri)
+
+	return c.request(ctx, "POST", uri.String(),
 		map[string]interface{}{
 			"ids": ids,
 		})
@@ -44,24 +51,31 @@ func (c *CustomerIO) RemovePeopleFromSegment(ctx context.Context, segmentID int,
 	if len(ids) == 0 {
 		return ParamError{Param: "ids"}
 	}
-	return c.request(ctx, "POST",
-		fmt.Sprintf("%s/api/v1/segments/%d/remove_customers%s", c.URL, segmentID, c.getQueryParams()),
+
+	uri, err := url.Parse(fmt.Sprintf("%s/api/v1/segments/%d/remove_customers", c.URL, segmentID))
+	if err != nil {
+		return err
+	}
+	c.addIDTypeQuery(uri)
+
+	return c.request(ctx, "POST", uri.String(),
 		map[string]interface{}{
 			"ids": ids,
 		})
 }
 
 // getQueryParams returns the query parameter for the request.
-func (c *CustomerIO) getQueryParams() string {
+func (c *CustomerIO) addIDTypeQuery(uri *url.URL) {
 	if c.IDType == "" {
-		return ""
+		return
 	}
 
-	// Check if the IDType is valid and construct query parameter accordingly
+	query := uri.Query()
 	switch IDType(c.IDType) {
 	case IDTypeEmail, IDTypeCioID:
-		return fmt.Sprintf("?id_type=%s", c.IDType)
+		query.Set("id_type", c.IDType)
 	default:
-		return fmt.Sprintf("?id_type=%s", DefaultIDType)
+		query.Set("id_type", string(DefaultIDType))
 	}
+	uri.RawQuery = query.Encode()
 }
