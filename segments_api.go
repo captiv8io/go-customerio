@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strconv"
 )
 
 const errUnexpectedStatusCode = "unexpected status code %d"
@@ -180,6 +182,16 @@ func (c *APIClient) GetSegmentCustomerCount(ctx context.Context, segmentID int) 
 	return &response, nil
 }
 
+// ListCustomersInSegmentRequest represents the request for listing customers in a segment.
+// The Start field is the token for the page of results you want to return.
+// Responses contain a next property. Use this property as the start value to return the next page of results.
+// The Limit field is the maximum number of results you want to retrieve per page. The default is 1000. The maximum is 30000.
+type ListCustomersInSegmentRequest struct {
+	SegmentID int    `json:"segment_id"`
+	Start     string `json:"start,omitempty"`
+	Limit     int    `json:"limit,omitempty"`
+}
+
 // ListCustomersInSegmentResponse represents the response for listing customers in a segment.
 type ListCustomersInSegmentResponse struct {
 	IDs         []string             `json:"ids"`         // List of customer IDs.
@@ -195,8 +207,27 @@ type CustomerIdentifier struct {
 }
 
 // ListCustomersInSegment retrieves a list of customers in a specific segment.
-func (c *APIClient) ListCustomersInSegment(ctx context.Context, segmentID int) (*ListCustomersInSegmentResponse, error) {
-	respBody, statusCode, err := c.doRequest(ctx, "GET", fmt.Sprintf("/v1/segments/%d/membership", segmentID), nil)
+func (c *APIClient) ListCustomersInSegment(ctx context.Context, req *ListCustomersInSegmentRequest) (*ListCustomersInSegmentResponse, error) {
+	// Build base URL
+	u, err := url.Parse(fmt.Sprintf("/v1/segments/%d/membership", req.SegmentID))
+	if err != nil {
+		return nil, err
+	}
+
+	// Add optional query parameters from the request struct
+	query := u.Query()
+	if req != nil {
+		if req.Start != "" {
+			query.Set("start", req.Start)
+		}
+		if req.Limit > 0 && req.Limit <= 30000 {
+			query.Set("limit", strconv.Itoa(req.Limit))
+		}
+	}
+	u.RawQuery = query.Encode()
+
+	// Perform the request
+	respBody, statusCode, err := c.doRequest(ctx, "GET", u.String(), nil)
 	if err != nil {
 		return nil, err
 	}
