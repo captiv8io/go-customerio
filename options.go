@@ -113,15 +113,6 @@ func WithUserAgent(ua string) Option {
 	}
 }
 
-func WithIDType(idType string) option {
-	return option{
-		api: func(a *APIClient) {},
-		track: func(c *CustomerIO) {
-			c.IDType = idType
-		},
-	}
-}
-
 // TrackOption sets optional top-level fields on tracked events.
 type TrackOption func(map[string]any)
 

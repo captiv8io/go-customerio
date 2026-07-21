@@ -17,7 +17,6 @@ type CustomerIO struct {
 	apiKey    string
 	URL       string
 	UserAgent string
-	IDType    string
 	Client    HTTPClient
 }
 

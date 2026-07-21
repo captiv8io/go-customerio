@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -15,7 +15,6 @@ import (
 
 var (
 	testSegmentID     = 1
-	notFoundID        = 2
 	testDeduplicateID = "deduplicate_id"
 )
 
@@ -65,7 +64,7 @@ func TestCreateSegment(t *testing.T) {
 func TestCreateSegmentDoRequestError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		conn, _, _ := w.(http.Hijacker).Hijack()
-		conn.Close()
+		_ = conn.Close()
 	}))
 	defer srv.Close()
 
@@ -113,7 +112,7 @@ func TestCreateSegmentNotOKError(t *testing.T) {
 
 func TestCreateSegmentUnmarshalError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		w.Write([]byte(`invalid-json`))
+		_, _ = w.Write([]byte(`invalid-json`))
 	}))
 	defer srv.Close()
 
@@ -164,7 +163,7 @@ func TestListSegments(t *testing.T) {
 func TestListSegmentsDoRequestError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		conn, _, _ := w.(http.Hijacker).Hijack()
-		conn.Close()
+		_ = conn.Close()
 	}))
 	defer srv.Close()
 
@@ -194,7 +193,7 @@ func TestListSegmentsNotOKError(t *testing.T) {
 
 func TestListSegmentsUnmarshalError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		w.Write([]byte(`invalid-json`))
+		_, _ = w.Write([]byte(`invalid-json`))
 	}))
 	defer srv.Close()
 
@@ -233,7 +232,7 @@ func TestGetSegment(t *testing.T) {
 func TestGetSegmentDoRequestError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		conn, _, _ := w.(http.Hijacker).Hijack()
-		conn.Close()
+		_ = conn.Close()
 	}))
 	defer srv.Close()
 
@@ -263,7 +262,7 @@ func TestGetSegmentNotOKError(t *testing.T) {
 
 func TestGetSegmentUnmarshalError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		w.Write([]byte(`invalid-json`))
+		_, _ = w.Write([]byte(`invalid-json`))
 	}))
 	defer srv.Close()
 
@@ -291,7 +290,7 @@ func TestDeleteSegment(t *testing.T) {
 func TestDeleteSegmentDoRequestError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		conn, _, _ := w.(http.Hijacker).Hijack()
-		conn.Close()
+		_ = conn.Close()
 	}))
 	defer srv.Close()
 
@@ -321,7 +320,7 @@ func TestDeleteSegmentNotOKError(t *testing.T) {
 
 func TestDeleteSegmentUnmarshalError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		w.Write([]byte(`invalid-json`))
+		_, _ = w.Write([]byte(`invalid-json`))
 	}))
 	defer srv.Close()
 
@@ -365,7 +364,7 @@ func TestGetSegmentDependencies(t *testing.T) {
 func TestGetSegmentDependenciesDoRequestError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		conn, _, _ := w.(http.Hijacker).Hijack()
-		conn.Close()
+		_ = conn.Close()
 	}))
 	defer srv.Close()
 
@@ -395,7 +394,7 @@ func TestGetSegmentDependenciesNotOKError(t *testing.T) {
 
 func TestGetSegmentDependenciesUnmarshalError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		w.Write([]byte(`invalid-json`))
+		_, _ = w.Write([]byte(`invalid-json`))
 	}))
 	defer srv.Close()
 
@@ -431,7 +430,7 @@ func TestGetSegmentCustomerCount(t *testing.T) {
 func TestGetSegmentCustomerCountDoRequestError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		conn, _, _ := w.(http.Hijacker).Hijack()
-		conn.Close()
+		_ = conn.Close()
 	}))
 	defer srv.Close()
 
@@ -461,7 +460,7 @@ func TestGetSegmentCustomerCountNotOKError(t *testing.T) {
 
 func TestGetSegmentCustomerCountUnmarshalError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		w.Write([]byte(`invalid-json`))
+		_, _ = w.Write([]byte(`invalid-json`))
 	}))
 	defer srv.Close()
 
@@ -505,7 +504,7 @@ func TestListCustomersInSegment(t *testing.T) {
 func TestListCustomersInSegmentDoRequestError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		conn, _, _ := w.(http.Hijacker).Hijack()
-		conn.Close()
+		_ = conn.Close()
 	}))
 	defer srv.Close()
 
@@ -535,7 +534,7 @@ func TestListCustomersInSegmentNotOKError(t *testing.T) {
 
 func TestListCustomersInSegmentUnmarshalError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		w.Write([]byte(`invalid-json`))
+		_, _ = w.Write([]byte(`invalid-json`))
 	}))
 	defer srv.Close()
 
@@ -554,24 +553,24 @@ func intPtr(s int) *int {
 
 func segmentsAppServer(t *testing.T, verify func(request []byte)) (*customerio.APIClient, *httptest.Server) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		b, err := ioutil.ReadAll(req.Body)
+		b, err := io.ReadAll(req.Body)
 		if err != nil {
 			t.Error(err)
 		}
-		defer req.Body.Close()
+		defer func() { _ = req.Body.Close() }()
 
 		verify(b)
 
 		switch true {
 		case req.Method == "POST" && req.URL.Path == "/v1/segments":
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"segment": {
 					"id": ` + fmt.Sprintf("%d", testSegmentID) + `,
 					"deduplicate_id": "` + testDeduplicateID + `"
 			}
 		  }`))
 		case req.Method == "GET" && req.URL.Path == "/v1/segments":
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"segments": [
 					{
 						"id": ` + fmt.Sprintf("%d", testSegmentID) + `,
@@ -579,7 +578,7 @@ func segmentsAppServer(t *testing.T, verify func(request []byte)) (*customerio.A
 			}
 		  ]}`))
 		case req.Method == "GET" && req.URL.Path == "/v1/segments/1":
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"segment": {
 					"id": ` + fmt.Sprintf("%d", testSegmentID) + `,
 					"deduplicate_id": "` + testDeduplicateID + `"
@@ -588,11 +587,11 @@ func segmentsAppServer(t *testing.T, verify func(request []byte)) (*customerio.A
 		case req.Method == "DELETE" && req.URL.Path == "/v1/segments/1":
 			w.WriteHeader(http.StatusNoContent)
 		case req.Method == "GET" && req.URL.Path == "/v1/segments/1/customer_count":
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"count": 1
 			}`))
 		case req.Method == "GET" && req.URL.Path == "/v1/segments/1/membership":
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"ids": ["string"],
 				"identifiers": [
 					{
@@ -604,7 +603,7 @@ func segmentsAppServer(t *testing.T, verify func(request []byte)) (*customerio.A
 				"next": "string"
 			}`))
 		case req.Method == "GET" && req.URL.Path == "/v1/segments/1/used_by":
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"used_by": {
 					"campaigns": [1],
 					"sent_newsletters": [2],
