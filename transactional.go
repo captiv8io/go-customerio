@@ -12,24 +12,30 @@ import (
 type TransactionalType int
 
 const (
-	TransactionalTypeEmail = 0
-	TransactionalTypePush  = 1
+	TransactionalTypeEmail        TransactionalType = 0
+	TransactionalTypePush         TransactionalType = 1
+	TransactionalTypeSMS          TransactionalType = 2
+	TransactionalTypeInboxMessage TransactionalType = 3
+	TransactionalTypeInApp        TransactionalType = 4
 )
 
 var typeToApi = map[TransactionalType]string{
-	TransactionalTypeEmail: "email",
-	TransactionalTypePush:  "push",
+	TransactionalTypeEmail:        "email",
+	TransactionalTypePush:         "push",
+	TransactionalTypeSMS:          "sms",
+	TransactionalTypeInboxMessage: "inbox_message",
+	TransactionalTypeInApp:        "in_app",
 }
 
 var ErrInvalidTransactionalMessageType = errors.New("unknown transactional message type")
 
-func (c *APIClient) sendTransactional(ctx context.Context, typ TransactionalType, req interface{}) (*TransactionalResponse, error) {
+func (c *APIClient) sendTransactional(ctx context.Context, typ TransactionalType, req any) (*TransactionalResponse, error) {
 	api, ok := typeToApi[typ]
 	if !ok {
 		return nil, ErrInvalidTransactionalMessageType
 	}
 
-	body, statusCode, err := c.doRequest(ctx, "POST", fmt.Sprintf("/v1/send/%s", api), req)
+	body, statusCode, err := c.doRequest(ctx, "POST", formatPath("/v1/send/%s", api), req)
 	if err != nil {
 		return nil, err
 	}
@@ -90,5 +96,5 @@ type TransactionalError struct {
 }
 
 func (e *TransactionalError) Error() string {
-	return e.Err
+	return fmt.Sprintf("%d: %s", e.StatusCode, e.Err)
 }

@@ -1,69 +1,45 @@
 package customerio
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"io"
-	"io/ioutil"
 	"net/http"
 )
 
+type HTTPClient interface {
+	Do(req *http.Request) (*http.Response, error)
+}
+
 type APIClient struct {
-	Key       string
-	URL       string
+	// Deprecated: Use NewAPIClient constructor options instead. Will be unexported in v4.
+	Key string
+	// Deprecated: Use NewAPIClient with WithURL or WithRegion instead. Will be unexported in v4.
+	URL string
+	// Deprecated: Use NewAPIClient with WithUserAgent instead. Will be unexported in v4.
 	UserAgent string
-	Client    *http.Client
+	// Deprecated: Use NewAPIClient with WithHTTPClient instead. Will be unexported in v4.
+	Client HTTPClient
 }
 
 // NewAPIClient prepares a client for use with the Customer.io API, see: https://customer.io/docs/api/#apicoreintroduction
 // using an App API Key from https://fly.customer.io/settings/api_credentials?keyType=app
-func NewAPIClient(key string, opts ...option) *APIClient {
+func NewAPIClient(key string, opts ...Option) *APIClient {
 	client := &APIClient{
 		Key:       key,
-		Client:    http.DefaultClient,
+		Client:    newDefaultHTTPClient(),
 		URL:       "https://api.customer.io",
 		UserAgent: DefaultUserAgent,
 	}
 
 	for _, opt := range opts {
-		opt.api(client)
+		if opt != nil {
+			opt.applyAPI(client)
+		}
 	}
 	return client
 }
 
-func (c *APIClient) doRequest(ctx context.Context, verb, requestPath string, body interface{}) ([]byte, int, error) {
-	var requestBody io.Reader
-
-	if body != nil {
-		b, err := json.Marshal(body)
-		if err != nil {
-			return nil, 0, err
-		}
-		requestBody = bytes.NewBuffer(b)
-	}
-
-	req, err := http.NewRequest(verb, c.URL+requestPath, requestBody)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	req = req.WithContext(ctx)
-
-	req.Header.Set("Authorization", "Bearer "+c.Key)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Add("User-Agent", c.UserAgent)
-
-	resp, err := c.Client.Do(req)
-	if err != nil {
-		return nil, 0, err
-	}
-	defer resp.Body.Close()
-
-	respBody, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	return respBody, resp.StatusCode, nil
+func (c *APIClient) doRequest(ctx context.Context, verb, requestPath string, body any) ([]byte, int, error) {
+	return doHTTP(ctx, c.Client, verb, c.URL+requestPath, c.UserAgent, body, func(req *http.Request) {
+		req.Header.Set("Authorization", "Bearer "+c.Key)
+	})
 }

@@ -1,16 +1,11 @@
 package customerio
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net/http"
-	"net/url"
-	"strconv"
 	"strings"
 )
 
@@ -23,7 +18,7 @@ type CustomerIO struct {
 	URL       string
 	UserAgent string
 	IDType    string
-	Client    *http.Client
+	Client    HTTPClient
 }
 
 // CustomerIOError is returned by any method that fails at the API level
@@ -37,6 +32,23 @@ func (e *CustomerIOError) Error() string {
 	return fmt.Sprintf("%v: %v %v", e.status, e.url, string(e.body))
 }
 
+// StatusCode returns the HTTP status code from a failed API response.
+func (e *CustomerIOError) StatusCode() int {
+	return e.status
+}
+
+// URL returns the request URL from a failed API response.
+func (e *CustomerIOError) URL() string {
+	return e.url
+}
+
+// Body returns a copy of the failed API response body.
+func (e *CustomerIOError) Body() []byte {
+	body := make([]byte, len(e.body))
+	copy(body, e.body)
+	return body
+}
+
 // ParamError is an error returned if a parameter to the track API is invalid.
 type ParamError struct {
 	Param string // Param is the name of the parameter.
@@ -46,90 +58,79 @@ func (e ParamError) Error() string { return e.Param + ": missing" }
 
 // NewTrackClient prepares a client for use with the Customer.io track API, see: https://customer.io/docs/api/#apitrackintroduction
 // using a Tracking Site ID and API Key pair from https://fly.customer.io/settings/api_credentials
-func NewTrackClient(siteID, apiKey string, opts ...option) *CustomerIO {
-	client := &http.Client{
-		Transport: &http.Transport{
-			MaxIdleConnsPerHost: 100,
-		},
-	}
+func NewTrackClient(siteID, apiKey string, opts ...Option) *CustomerIO {
 	c := &CustomerIO{
 		siteID:    siteID,
 		apiKey:    apiKey,
 		URL:       "https://track.customer.io",
 		UserAgent: DefaultUserAgent,
-		Client:    client,
+		Client:    newDefaultHTTPClient(),
 	}
 
 	for _, opt := range opts {
-		opt.track(c)
+		if opt == nil {
+			continue
+		}
+		opt.applyTrack(c)
 	}
 
 	return c
 }
 
 // NewCustomerIO prepares a client for use with the Customer.io track API, see: https://customer.io/docs/api/#apitrackintroduction
-// deprecated in favour of NewTrackClient
+//
+// Deprecated: use NewTrackClient.
 func NewCustomerIO(siteID, apiKey string) *CustomerIO {
 	return NewTrackClient(siteID, apiKey)
 }
 
 // IdentifyCtx identifies a customer and sets their attributes
-func (c *CustomerIO) IdentifyCtx(ctx context.Context, customerID string, attributes map[string]interface{}) error {
+func (c *CustomerIO) IdentifyCtx(ctx context.Context, customerID string, attributes map[string]any) error {
 	if customerID == "" {
 		return ParamError{Param: "customerID"}
 	}
-	return c.request(ctx, "PUT",
-		fmt.Sprintf("%s/api/v1/customers/%s", c.URL, url.PathEscape(customerID)),
-		attributes)
+	return c.request(ctx, "PUT", c.URL+formatPath("/api/v1/customers/%s", customerID), attributes)
 }
 
 // Identify identifies a customer and sets their attributes
-func (c *CustomerIO) Identify(customerID string, attributes map[string]interface{}) error {
+func (c *CustomerIO) Identify(customerID string, attributes map[string]any) error {
 	return c.IdentifyCtx(context.Background(), customerID, attributes)
 }
 
 // TrackCtx sends a single event to Customer.io for the supplied user
-func (c *CustomerIO) TrackCtx(ctx context.Context, customerID string, eventName string, data map[string]interface{}) error {
+func (c *CustomerIO) TrackCtx(ctx context.Context, customerID string, eventName string, data map[string]any, opts ...TrackOption) error {
 	if customerID == "" {
 		return ParamError{Param: "customerID"}
 	}
 	if eventName == "" {
 		return ParamError{Param: "eventName"}
 	}
-	return c.request(ctx, "POST",
-		fmt.Sprintf("%s/api/v1/customers/%s/events", c.URL, url.PathEscape(customerID)),
-		map[string]interface{}{
-			"name": eventName,
-			"data": data,
-		})
+	return c.request(ctx, "POST", c.URL+formatPath("/api/v1/customers/%s/events", customerID), trackPayload(eventName, data, opts...))
 }
 
 // Track sends a single event to Customer.io for the supplied user
-func (c *CustomerIO) Track(customerID string, eventName string, data map[string]interface{}) error {
-	return c.TrackCtx(context.Background(), customerID, eventName, data)
+func (c *CustomerIO) Track(customerID string, eventName string, data map[string]any, opts ...TrackOption) error {
+	return c.TrackCtx(context.Background(), customerID, eventName, data, opts...)
 }
 
 // TrackAnonymousCtx sends a single event to Customer.io for the anonymous user
-func (c *CustomerIO) TrackAnonymousCtx(ctx context.Context, anonymousID, eventName string, data map[string]interface{}) error {
+func (c *CustomerIO) TrackAnonymousCtx(ctx context.Context, anonymousID, eventName string, data map[string]any, opts ...TrackOption) error {
 	if eventName == "" {
 		return ParamError{Param: "eventName"}
 	}
 
-	payload := map[string]interface{}{
-		"name": eventName,
-		"data": data,
-	}
+	payload := trackPayload(eventName, data, opts...)
 
 	if anonymousID != "" {
 		payload["anonymous_id"] = anonymousID
 	}
 
-	return c.request(ctx, "POST", fmt.Sprintf("%s/api/v1/events", c.URL), payload)
+	return c.request(ctx, "POST", c.URL+"/api/v1/events", payload)
 }
 
 // TrackAnonymous sends a single event to Customer.io for the anonymous user
-func (c *CustomerIO) TrackAnonymous(anonymousID, eventName string, data map[string]interface{}) error {
-	return c.TrackAnonymousCtx(context.Background(), anonymousID, eventName, data)
+func (c *CustomerIO) TrackAnonymous(anonymousID, eventName string, data map[string]any, opts ...TrackOption) error {
+	return c.TrackAnonymousCtx(context.Background(), anonymousID, eventName, data, opts...)
 }
 
 // DeleteCtx deletes a customer
@@ -137,58 +138,26 @@ func (c *CustomerIO) DeleteCtx(ctx context.Context, customerID string) error {
 	if customerID == "" {
 		return ParamError{Param: "customerID"}
 	}
-	return c.request(ctx, "DELETE",
-		fmt.Sprintf("%s/api/v1/customers/%s", c.URL, url.PathEscape(customerID)),
-		nil)
+	return c.request(ctx, "DELETE", c.URL+formatPath("/api/v1/customers/%s", customerID), nil)
 }
 
 func (c *CustomerIO) auth() string {
-	return base64.URLEncoding.EncodeToString([]byte(fmt.Sprintf("%v:%v", c.siteID, c.apiKey)))
+	return base64.URLEncoding.EncodeToString(fmt.Appendf(nil, "%v:%v", c.siteID, c.apiKey))
 }
 
-func (c *CustomerIO) request(ctx context.Context, method, url string, body interface{}) error {
-	var req *http.Request
-	if body != nil {
-		j, err := json.Marshal(body)
-		if err != nil {
-			return err
-		}
-
-		req, err = http.NewRequest(method, url, bytes.NewBuffer(j))
-		if err != nil {
-			return err
-		}
-		req = req.WithContext(ctx)
-
-		req.Header.Add("User-Agent", c.UserAgent)
-		req.Header.Add("Content-Type", "application/json")
-		req.Header.Add("Content-Length", strconv.Itoa(len(j)))
-	} else {
-		var err error
-		req, err = http.NewRequest(method, url, nil)
-		if err != nil {
-			return err
-		}
-	}
-
-	req.Header.Add("Authorization", fmt.Sprintf("Basic %v", c.auth()))
-
-	resp, err := c.Client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	responseBody, err := ioutil.ReadAll(resp.Body)
+func (c *CustomerIO) request(ctx context.Context, method, url string, body any) error {
+	respBody, statusCode, err := doHTTP(ctx, c.Client, method, url, c.UserAgent, body, func(req *http.Request) {
+		req.Header.Set("Authorization", fmt.Sprintf("Basic %v", c.auth()))
+	})
 	if err != nil {
 		return err
 	}
 
-	if resp.StatusCode != http.StatusOK {
+	if statusCode != http.StatusOK {
 		return &CustomerIOError{
-			status: resp.StatusCode,
+			status: statusCode,
 			url:    url,
-			body:   responseBody,
+			body:   respBody,
 		}
 	}
 
@@ -215,9 +184,9 @@ func (id Identifier) kv() map[string]string {
 }
 
 func (id Identifier) validate() error {
-	if !(id.Type == IdentifierTypeID ||
-		id.Type == IdentifierTypeEmail ||
-		id.Type == IdentifierTypeCioID) {
+	if id.Type != IdentifierTypeID &&
+		id.Type != IdentifierTypeEmail &&
+		id.Type != IdentifierTypeCioID {
 		return errors.New("invalid id type")
 	}
 
@@ -230,19 +199,17 @@ func (id Identifier) validate() error {
 
 // MergeCustomersCtx sends a request to Customer.io to merge two customer profiles together.
 func (c *CustomerIO) MergeCustomersCtx(ctx context.Context, primary Identifier, secondary Identifier) error {
-	if primary.validate() != nil {
-		return ParamError{Param: "primary"}
+	if err := primary.validate(); err != nil {
+		return fmt.Errorf("primary: %w", err)
 	}
-	if secondary.validate() != nil {
-		return ParamError{Param: "secondary"}
+	if err := secondary.validate(); err != nil {
+		return fmt.Errorf("secondary: %w", err)
 	}
 
-	return c.request(ctx, "POST",
-		fmt.Sprintf("%s/api/v1/merge_customers", c.URL),
-		map[string]interface{}{
-			"primary":   primary.kv(),
-			"secondary": secondary.kv(),
-		})
+	return c.request(ctx, "POST", c.URL+"/api/v1/merge_customers", map[string]any{
+		"primary":   primary.kv(),
+		"secondary": secondary.kv(),
+	})
 }
 
 // MergeCustomers sends a request to Customer.io to merge two customer profiles together.

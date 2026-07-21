@@ -21,7 +21,7 @@ func TestSendEmail(t *testing.T) {
 		From:    "business@example.com",
 		Subject: "hello, {{ trigger.name }}",
 		Body:    "hello from the Customer.io {{ trigger.client }} client",
-		MessageData: map[string]interface{}{
+		MessageData: map[string]any{
 			"client": "Go",
 			"name":   "gopher",
 		},
@@ -75,7 +75,7 @@ func TestSendEmailError(t *testing.T) {
 		From:    "business@example.com",
 		Subject: "hello, {{ trigger.name }}",
 		Body:    "hello from the Customer.io {{ trigger.client }} client",
-		MessageData: map[string]interface{}{
+		MessageData: map[string]any{
 			"client": "Go",
 			"name":   "gopher",
 		},
@@ -84,7 +84,7 @@ func TestSendEmailError(t *testing.T) {
 		t.Errorf("Expected error, got: %#v", resp)
 	}
 
-	if e, ok := err.(*customerio.TransactionalError); !ok {
-		t.Errorf("Expected TransactionalError, got: %#v", e)
+	if _, ok := err.(*customerio.TransactionalError); !ok {
+		t.Errorf("Expected TransactionalError, got: %#v", err)
 	}
 }
