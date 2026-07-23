@@ -1,6 +1,9 @@
 # Changelog
 
 ## [Unreleased]
+### Added
+- Segment membership listing supports `start` and `limit` pagination options.
+
 ### Changed
 - `Device` now exposes a `Token` field for transactional push custom-device payloads to match the `token` JSON field.
 
@@ -8,6 +11,7 @@
 - Default clients now use a 30 second HTTP timeout, and Basic auth continues to use the previous URL-safe base64 encoding.
 - Made the default transport safe when `http.DefaultTransport` is replaced by instrumentation.
 - Hardened client options and region selection against nil options and mutable package-level region values.
+- Oversized HTTP responses now return `ErrResponseTooLarge` instead of passing truncated JSON to callers.
 
 ## [v3.8.0]
 ### Added

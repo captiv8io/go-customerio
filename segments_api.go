@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strconv"
 )
 
 const errUnexpectedStatusCode = "unexpected status code %d"
@@ -194,9 +196,53 @@ type CustomerIdentifier struct {
 	CioID string `json:"cio_id"` // Customer.io ID of the customer.
 }
 
+// MaxSegmentMembershipPageSize is the largest page size accepted by the
+// Customer.io segment membership endpoint.
+const MaxSegmentMembershipPageSize = 1000
+
+// ListCustomersInSegmentOption configures segment membership pagination.
+type ListCustomersInSegmentOption func(url.Values) error
+
+// WithSegmentMembershipStart requests the page identified by start. An empty
+// value requests the first page.
+func WithSegmentMembershipStart(start string) ListCustomersInSegmentOption {
+	return func(values url.Values) error {
+		if start != "" {
+			values.Set("start", start)
+		}
+		return nil
+	}
+}
+
+// WithSegmentMembershipLimit sets the maximum number of memberships returned
+// in one page.
+func WithSegmentMembershipLimit(limit int) ListCustomersInSegmentOption {
+	return func(values url.Values) error {
+		if limit < 1 || limit > MaxSegmentMembershipPageSize {
+			return fmt.Errorf("customerio: segment membership limit must be between 1 and %d", MaxSegmentMembershipPageSize)
+		}
+		values.Set("limit", strconv.Itoa(limit))
+		return nil
+	}
+}
+
 // ListCustomersInSegment retrieves a list of customers in a specific segment.
-func (c *APIClient) ListCustomersInSegment(ctx context.Context, segmentID int) (*ListCustomersInSegmentResponse, error) {
-	respBody, statusCode, err := c.doRequest(ctx, "GET", fmt.Sprintf("/v1/segments/%d/membership", segmentID), nil)
+func (c *APIClient) ListCustomersInSegment(ctx context.Context, segmentID int, opts ...ListCustomersInSegmentOption) (*ListCustomersInSegmentResponse, error) {
+	requestPath := fmt.Sprintf("/v1/segments/%d/membership", segmentID)
+	query := url.Values{}
+	for _, opt := range opts {
+		if opt == nil {
+			continue
+		}
+		if err := opt(query); err != nil {
+			return nil, err
+		}
+	}
+	if encoded := query.Encode(); encoded != "" {
+		requestPath += "?" + encoded
+	}
+
+	respBody, statusCode, err := c.doRequest(ctx, "GET", requestPath, nil)
 	if err != nil {
 		return nil, err
 	}

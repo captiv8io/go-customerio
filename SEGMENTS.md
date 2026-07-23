@@ -108,8 +108,34 @@ This document explains how to use the new methods added for managing customer se
 	}
 
 	for _, customer := range customers.Identifiers {
-		log.Printf("Customer ID: %d", customer.ID)
+		log.Printf("Customer ID: %s", customer.ID)
 	}
+    ```
+
+   Membership results are paginated. Pass the response's `Next` value back as
+   the `start` option until `Next` is empty:
+
+    ```go
+    start := ""
+    for {
+        options := []ListCustomersInSegmentOption{
+            WithSegmentMembershipLimit(MaxSegmentMembershipPageSize),
+        }
+        if start != "" {
+            options = append(options, WithSegmentMembershipStart(start))
+        }
+
+        customers, err := cio.ListCustomersInSegment(context.Background(), segmentID, options...)
+        if err != nil {
+            log.Fatal(err)
+        }
+        // Process customers.Identifiers here.
+
+        if customers.Next == "" {
+            break
+        }
+        start = customers.Next
+    }
     ```
 
 ### Managing Customers in Segments

@@ -501,6 +501,46 @@ func TestListCustomersInSegment(t *testing.T) {
 	}
 }
 
+func TestListCustomersInSegmentPaginationOptions(t *testing.T) {
+	var requestURI string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		requestURI = req.URL.RequestURI()
+		_, _ = w.Write([]byte(`{"ids":[],"identifiers":[],"next":""}`))
+	}))
+	defer srv.Close()
+
+	api := customerio.NewAPIClient("myKey")
+	api.URL = srv.URL
+
+	_, err := api.ListCustomersInSegment(
+		context.Background(),
+		testSegmentID,
+		customerio.WithSegmentMembershipStart("next page"),
+		customerio.WithSegmentMembershipLimit(customerio.MaxSegmentMembershipPageSize),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	const want = "/v1/segments/1/membership?limit=1000&start=next+page"
+	if requestURI != want {
+		t.Fatalf("request URI = %q, want %q", requestURI, want)
+	}
+}
+
+func TestListCustomersInSegmentRejectsInvalidLimit(t *testing.T) {
+	api := customerio.NewAPIClient("myKey")
+
+	_, err := api.ListCustomersInSegment(
+		context.Background(),
+		testSegmentID,
+		customerio.WithSegmentMembershipLimit(customerio.MaxSegmentMembershipPageSize+1),
+	)
+	if err == nil {
+		t.Fatal("expected invalid limit error")
+	}
+}
+
 func TestListCustomersInSegmentDoRequestError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		conn, _, _ := w.(http.Hijacker).Hijack()

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"time"
@@ -13,6 +14,12 @@ import (
 // WithHTTPClient. For requests with large attachments, you may need
 // a longer timeout via WithHTTPClient.
 const DefaultHTTPTimeout = 30 * time.Second
+
+const maxResponseBodySize int64 = 1 << 20
+
+// ErrResponseTooLarge is returned when an HTTP response exceeds the maximum
+// body size accepted by the client.
+var ErrResponseTooLarge = errors.New("customerio: response body exceeds 1 MiB")
 
 func newDefaultHTTPClient() *http.Client {
 	return &http.Client{
@@ -54,9 +61,12 @@ func doHTTP(ctx context.Context, client HTTPClient, method, url, userAgent strin
 		_ = resp.Body.Close()
 	}()
 
-	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBodySize+1))
 	if err != nil {
 		return nil, 0, err
+	}
+	if int64(len(respBody)) > maxResponseBodySize {
+		return nil, resp.StatusCode, ErrResponseTooLarge
 	}
 
 	return respBody, resp.StatusCode, nil

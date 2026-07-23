@@ -1,3 +1,3 @@
 package customerio
 
-const Version = "3.8.0"
+const Version = "3.11.1"
