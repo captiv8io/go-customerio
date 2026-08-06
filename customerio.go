@@ -140,6 +140,22 @@ func (c *CustomerIO) DeleteCtx(ctx context.Context, customerID string) error {
 	return c.request(ctx, "DELETE", c.URL+formatPath("/api/v1/customers/%s", customerID), nil)
 }
 
+// SuppressCtx adds a customer to the suppression list.
+func (c *CustomerIO) SuppressCtx(ctx context.Context, customerID string) error {
+	if customerID == "" {
+		return ParamError{Param: "customerID"}
+	}
+	return c.request(ctx, "POST", c.URL+formatPath("/api/v1/customers/%s/suppress", customerID), nil)
+}
+
+// UnsuppressCtx removes a customer from the suppression list.
+func (c *CustomerIO) UnsuppressCtx(ctx context.Context, customerID string) error {
+	if customerID == "" {
+		return ParamError{Param: "customerID"}
+	}
+	return c.request(ctx, "POST", c.URL+formatPath("/api/v1/customers/%s/unsuppress", customerID), nil)
+}
+
 func (c *CustomerIO) auth() string {
 	return base64.URLEncoding.EncodeToString(fmt.Appendf(nil, "%v:%v", c.siteID, c.apiKey))
 }

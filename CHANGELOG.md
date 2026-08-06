@@ -3,6 +3,7 @@
 ## [Unreleased]
 ### Added
 - Segment membership listing supports `start` and `limit` pagination options.
+- Track clients can suppress and unsuppress customer identifiers with `SuppressCtx` and `UnsuppressCtx`.
 
 ### Changed
 - `Device` now exposes a `Token` field for transactional push custom-device payloads to match the `token` JSON field.

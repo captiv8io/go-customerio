@@ -370,6 +370,120 @@ func TestDeleteCtxUsesRequestContext(t *testing.T) {
 	}
 }
 
+func TestSuppressAndUnsuppressCtx(t *testing.T) {
+	type profileSuppressionMethod func(context.Context, *customerio.CustomerIO, string) error
+
+	tests := []struct {
+		name   string
+		path   string
+		method profileSuppressionMethod
+	}{
+		{
+			name: "suppress",
+			path: "/api/v1/customers/person%2F1/suppress",
+			method: func(ctx context.Context, client *customerio.CustomerIO, customerID string) error {
+				return client.SuppressCtx(ctx, customerID)
+			},
+		},
+		{
+			name: "unsuppress",
+			path: "/api/v1/customers/person%2F1/unsuppress",
+			method: func(ctx context.Context, client *customerio.CustomerIO, customerID string) error {
+				return client.UnsuppressCtx(ctx, customerID)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Run("posts without a body", func(t *testing.T) {
+				requestCount := 0
+				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+					requestCount++
+					if req.Method != http.MethodPost {
+						t.Errorf("expected method %s got %s", http.MethodPost, req.Method)
+					}
+					if req.RequestURI != tt.path {
+						t.Errorf("expected path %s got %s", tt.path, req.RequestURI)
+					}
+					body, err := io.ReadAll(req.Body)
+					if err != nil {
+						t.Error(err)
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+					if len(body) != 0 {
+						t.Errorf("expected empty body got %q", body)
+					}
+					w.WriteHeader(http.StatusOK)
+				}))
+				t.Cleanup(srv.Close)
+
+				client := customerio.NewTrackClient("siteid", "apikey")
+				client.URL = srv.URL
+
+				if err := tt.method(context.Background(), client, "person/1"); err != nil {
+					t.Fatal(err)
+				}
+				if requestCount != 1 {
+					t.Errorf("expected one HTTP request got %d", requestCount)
+				}
+			})
+
+			t.Run("rejects an empty customer ID without a request", func(t *testing.T) {
+				requestCount := 0
+				client := customerio.NewTrackClient(
+					"siteid",
+					"apikey",
+					customerio.WithHTTPClient(httpClientFunc(func(*http.Request) (*http.Response, error) {
+						requestCount++
+						return &http.Response{
+							StatusCode: http.StatusOK,
+							Body:       io.NopCloser(strings.NewReader("")),
+						}, nil
+					})),
+				)
+
+				err := tt.method(context.Background(), client, "")
+				checkParamError(t, err, "customerID")
+				if requestCount != 0 {
+					t.Errorf("expected no HTTP requests got %d", requestCount)
+				}
+			})
+
+			t.Run("returns CustomerIOError for non-200 responses", func(t *testing.T) {
+				const responseBody = `{"error":"unauthorized"}`
+
+				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+					w.WriteHeader(http.StatusUnauthorized)
+					if _, err := w.Write([]byte(responseBody)); err != nil {
+						t.Error(err)
+					}
+				}))
+				t.Cleanup(srv.Close)
+
+				client := customerio.NewTrackClient("siteid", "apikey")
+				client.URL = srv.URL
+
+				err := tt.method(context.Background(), client, "person/1")
+				var apiErr *customerio.CustomerIOError
+				if !errors.As(err, &apiErr) {
+					t.Fatalf("expected CustomerIOError, got %T", err)
+				}
+				if apiErr.StatusCode() != http.StatusUnauthorized {
+					t.Errorf("expected status %d got %d", http.StatusUnauthorized, apiErr.StatusCode())
+				}
+				if apiErr.URL() != srv.URL+tt.path {
+					t.Errorf("expected URL %s got %s", srv.URL+tt.path, apiErr.URL())
+				}
+				if string(apiErr.Body()) != responseBody {
+					t.Errorf("expected body %q got %q", responseBody, apiErr.Body())
+				}
+			})
+		})
+	}
+}
+
 func TestTrackCtxUsesRequestContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
